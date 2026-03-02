@@ -1,0 +1,99 @@
+---
+# ─── Service ─────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api-svc
+  namespace: order-platform
+  labels:
+    app: order-api
+spec:
+  selector:
+    app: order-api
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: 8080
+  type: ClusterIP    # Internal access only; use Ingress for external
+
+---
+# ─── ConfigMap — non-sensitive configuration ──────────────────────────
+# Add new config here, NOT in Secrets
+# Changing a ConfigMap requires a rolling restart to take effect
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-api-config
+  namespace: order-platform
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-svc:5432/orderdb"
+  SPRING_DATASOURCE_USERNAME: "orderuser"
+  AWS_REGION: "us-east-1"
+  SQS_ORDER_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/123456789/order-created-queue"
+  SQS_ORDER_DLQ_URL: "https://sqs.us-east-1.amazonaws.com/123456789/order-created-dlq"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,readiness,liveness,prometheus"
+  SERVER_SHUTDOWN: "graceful"
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: "30s"
+
+---
+# ─── Secret — sensitive values ────────────────────────────────────────
+# IMPORTANT: In production, use External Secrets Operator + AWS Secrets Manager
+# instead of storing values here. Values below are base64-encoded placeholders.
+# Do not commit real credentials to Git.
+#
+# To encode: echo -n "myvalue" | base64
+# To decode: echo "bXl2YWx1ZQ==" | base64 -d
+apiVersion: v1
+kind: Secret
+metadata:
+  name: order-platform-secrets
+  namespace: order-platform
+type: Opaque
+data:
+  db-password: b3JkZXJwYXNz                # orderpass (CHANGE IN PROD)
+  api-key: ZGV2LXNlY3JldC1rZXk=           # dev-secret-key (CHANGE IN PROD)
+  aws-access-key-id: dGVzdA==             # test (use IRSA in prod)
+  aws-secret-access-key: dGVzdA==         # test (use IRSA in prod)
+
+---
+# ─── HPA — Horizontal Pod Autoscaler ─────────────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-api-hpa
+  namespace: order-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-api
+  minReplicas: 2       # Never go below 2 (high availability)
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70    # Scale when average CPU > 70%
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: AverageValue
+        averageValue: 400Mi
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300   # Wait 5 min before scaling down (avoid flapping)
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60               # Remove max 1 pod per minute on scale down
+    scaleUp:
+      stabilizationWindowSeconds: 0     # Scale up immediately
+      policies:
+      - type: Pods
+        value: 4
+        periodSeconds: 60               # Add max 4 pods per minute on scale up

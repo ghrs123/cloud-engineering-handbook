@@ -1,0 +1,151 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────
+# Cloud-Native Order Processing Platform — Local Dev
+#
+# Services:
+#   postgres      → PostgreSQL 16 (shared DB for both services)
+#   localstack    → AWS SQS emulation (no real AWS account needed)
+#   order-api     → REST API service (port 8080)
+#   order-worker  → Async event consumer (no exposed port)
+#
+# Usage:
+#   docker-compose up -d                  # start all
+#   docker-compose up -d postgres localstack  # infra only (for local app dev)
+#   docker-compose logs -f order-api      # follow logs
+#   docker-compose down -v                # stop and remove volumes
+# ─────────────────────────────────────────────────────────────────────
+
+networks:
+  order-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  localstack-data:
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: order-postgres
+    networks: [order-net]
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: orderuser
+      POSTGRES_PASSWORD: orderpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderuser -d orderdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── LocalStack (SQS emulation) ────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3
+    container_name: order-localstack
+    networks: [order-net]
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+      LOCALSTACK_HOST: localstack
+      DEBUG: 0
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack-data:/var/lib/localstack
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init-sqs.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ── Order API ────────────────────────────────────────────────────
+  order-api:
+    build:
+      context: ../../services/order-api
+      dockerfile: Dockerfile
+    container_name: order-api
+    networks: [order-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderdb
+      SPRING_DATASOURCE_USERNAME: orderuser
+      SPRING_DATASOURCE_PASSWORD: orderpass
+      # SQS
+      AWS_ENDPOINT_OVERRIDE: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ORDER_QUEUE_URL: http://localstack:4566/000000000000/order-created-queue
+      SQS_ORDER_DLQ_URL: http://localstack:4566/000000000000/order-created-dlq
+      # Security
+      APP_API_KEY: dev-secret-key
+      # JVM
+      JAVA_TOOL_OPTIONS: >-
+        -Xms128m
+        -Xmx256m
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ── Order Worker ─────────────────────────────────────────────────
+  order-worker:
+    build:
+      context: ../../services/order-worker
+      dockerfile: Dockerfile
+    container_name: order-worker
+    networks: [order-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Database
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orderdb
+      SPRING_DATASOURCE_USERNAME: orderuser
+      SPRING_DATASOURCE_PASSWORD: orderpass
+      # SQS
+      AWS_ENDPOINT_OVERRIDE: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_ORDER_QUEUE_URL: http://localstack:4566/000000000000/order-created-queue
+      SQS_ORDER_DLQ_URL: http://localstack:4566/000000000000/order-created-dlq
+      # Resilience
+      RESILIENCE4J_RETRY_INSTANCES_ORDER_MAX_ATTEMPTS: 3
+      RESILIENCE4J_RETRY_INSTANCES_ORDER_WAIT_DURATION: 1s
+      # JVM
+      JAVA_TOOL_OPTIONS: >-
+        -Xms128m
+        -Xmx256m
+        -XX:+UseContainerSupport
+        -XX:MaxRAMPercentage=75.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

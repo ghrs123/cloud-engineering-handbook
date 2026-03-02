@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-api
+  namespace: order-platform
+  labels:
+    app: order-api
+    version: "1.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0          # Zero downtime: never go below desired replicas
+  template:
+    metadata:
+      labels:
+        app: order-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8080"
+    spec:
+      # Allow 30s for in-flight requests to complete on shutdown
+      terminationGracePeriodSeconds: 60
+
+      containers:
+      - name: order-api
+        image: your-registry/order-api:latest   # Replace with actual image tag (use commit SHA, never :latest)
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+
+        # ── Resource limits ──────────────────────────────────────
+        # requests: what the scheduler uses for placement decisions
+        # limits: hard ceiling (OOMKilled if exceeded)
+        # Rule: set limits to ~2x requests for Java services (JVM overhead)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"       # 0.25 vCPU
+          limits:
+            memory: "512Mi"
+            cpu: "500m"       # 0.5 vCPU
+
+        # ── Environment — non-sensitive config from ConfigMap ─────
+        envFrom:
+        - configMapRef:
+            name: order-api-config
+
+        # ── Environment — sensitive config from Secret ────────────
+        env:
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: db-password
+        - name: APP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: api-key
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: aws-secret-access-key
+
+        # ── JVM configuration ─────────────────────────────────────
+        - name: JAVA_TOOL_OPTIONS
+          value: >-
+            -Xms128m
+            -Xmx384m
+            -XX:+UseContainerSupport
+            -XX:MaxRAMPercentage=75.0
+            -Djava.security.egd=file:/dev/./urandom
+
+        # ── Readiness probe ───────────────────────────────────────
+        # Pod only receives traffic when Spring context is up
+        # AND DB connectivity is verified
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+          successThreshold: 1
+
+        # ── Liveness probe ────────────────────────────────────────
+        # Pod is restarted only if JVM is truly dead
+        # Use a longer threshold to avoid restarting during GC pause
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 40
+          periodSeconds: 20
+          failureThreshold: 3
+
+        # ── Graceful shutdown lifecycle hook ──────────────────────
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "sleep 5"]  # Wait for LB to drain before shutdown begins
+
+      # ── Security context ────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000

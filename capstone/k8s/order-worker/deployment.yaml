@@ -1,0 +1,142 @@
+---
+# ─── Deployment ───────────────────────────────────────────────────────
+# Note: order-worker has NO Service — it is a consumer, not a server.
+# It pulls messages from SQS. No inbound traffic.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-worker
+  namespace: order-platform
+  labels:
+    app: order-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1     # Worker can tolerate brief reduction (not serving HTTP traffic)
+  template:
+    metadata:
+      labels:
+        app: order-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8081"
+    spec:
+      terminationGracePeriodSeconds: 90   # Longer grace: finish in-flight message processing
+      containers:
+      - name: order-worker
+        image: your-registry/order-worker:latest
+        imagePullPolicy: Always
+        ports:
+        - name: management
+          containerPort: 8081    # Actuator only (not a public-facing port)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        envFrom:
+        - configMapRef:
+            name: order-worker-config
+        env:
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: db-password
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: order-platform-secrets
+              key: aws-secret-access-key
+        - name: JAVA_TOOL_OPTIONS
+          value: >-
+            -Xms128m -Xmx384m
+            -XX:+UseContainerSupport
+            -XX:MaxRAMPercentage=75.0
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8081
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8081
+          initialDelaySeconds: 40
+          periodSeconds: 20
+          failureThreshold: 3
+        lifecycle:
+          preStop:
+            exec:
+              command: ["sh", "-c", "sleep 10"]   # Extra time to finish current message
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+
+---
+# ─── ConfigMap ────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-worker-config
+  namespace: order-platform
+data:
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-svc:5432/orderdb"
+  SPRING_DATASOURCE_USERNAME: "orderuser"
+  AWS_REGION: "us-east-1"
+  SQS_ORDER_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/123456789/order-created-queue"
+  SQS_ORDER_DLQ_URL: "https://sqs.us-east-1.amazonaws.com/123456789/order-created-dlq"
+  SERVER_PORT: "8081"
+  MANAGEMENT_SERVER_PORT: "8081"
+  SERVER_SHUTDOWN: "graceful"
+  RESILIENCE4J_RETRY_INSTANCES_ORDER_MAX_ATTEMPTS: "3"
+  RESILIENCE4J_RETRY_INSTANCES_ORDER_WAIT_DURATION: "2s"
+  RESILIENCE4J_RETRY_INSTANCES_ORDER_ENABLE_EXPONENTIAL_BACKOFF: "true"
+  RESILIENCE4J_RETRY_INSTANCES_ORDER_EXPONENTIAL_BACKOFF_MULTIPLIER: "2"
+
+---
+# ─── HPA ──────────────────────────────────────────────────────────────
+# Note: CPU-based HPA is a starting point for workers.
+# For production SQS consumers, consider KEDA (Kubernetes Event Driven Autoscaler)
+# which scales based on queue depth (ApproximateNumberOfMessages).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-worker-hpa
+  namespace: order-platform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-worker
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 0
