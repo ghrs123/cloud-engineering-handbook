@@ -61,23 +61,22 @@ Complete navigation map for all 8 modules.
 | 6.3 Timeout, Bulkhead & DLQ Patterns | [03-timeout-bulkhead-dlq-milestone.md](./modules/06-resilience-patterns/03-timeout-bulkhead-dlq-milestone.md) |
 
 ### [Module 7 — Observability & Operability](./modules/07-observability/README.md)
-| Chapter | Included in README |
+| Chapter | File |
 |---|---|
-| 7.1 Three Pillars of Observability | Module README |
-| 7.2 Custom Metrics with Micrometer | Module README |
-| 7.3 Prometheus + Grafana Queries | Module README |
-| 7.4 Hardened Readiness Probe | Module README |
-| 7.5 Production Runbook | Module README |
+| 7.1 The Three Pillars of Observability | [01-observability-pillars.md](./modules/07-observability/01-observability-pillars.md) |
+| 7.2 Custom Metrics with Micrometer | [02-custom-metrics-micrometer.md](./modules/07-observability/02-custom-metrics-micrometer.md) |
+| 7.3 Prometheus & Actuator | [03-prometheus-actuator.md](./modules/07-observability/03-prometheus-actuator.md) |
+| 7.4 Health & Readiness Probes | [04-health-readiness-probes.md](./modules/07-observability/04-health-readiness-probes.md) |
+| 7.5 Production Runbook & Milestone M7 | [05-production-runbook.md](./modules/07-observability/05-production-runbook.md) |
 
 ### [Module 8 — Senior Communication & Interview Readiness](./modules/08-senior-communication/README.md)
-| Chapter | Included in README |
+| Chapter | File |
 |---|---|
-| 8.1 The 2-Minute Architecture Explanation | Module README |
-| 8.2 The 12 Interview Questions | Module README |
-| 8.3 Handling Questions You Don't Know | Module README |
-| 8.4 English Technical Vocabulary | Module README |
-| 8.5 Senior-Level Self-Assessment | Module README |
-| 8.6 Final Acceptance Test | Module README |
+| 8.1 The Architecture Pitch | [01-architecture-pitch.md](./modules/08-senior-communication/01-architecture-pitch.md) |
+| 8.2 Defending Trade-offs | [02-defending-tradeoffs.md](./modules/08-senior-communication/02-defending-tradeoffs.md) |
+| 8.3 The 12 Interview Questions | [03-twelve-interview-questions.md](./modules/08-senior-communication/03-twelve-interview-questions.md) |
+| 8.4 Vocabulary & Language Precision | [04-vocabulary-precision.md](./modules/08-senior-communication/04-vocabulary-precision.md) |
+| 8.5 Self-Assessment & Final Capstone Test | [05-final-capstone-test.md](./modules/08-senior-communication/05-final-capstone-test.md) |
 
 ---
 
