@@ -1,17 +1,36 @@
 import { useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
+import type { PrismTheme } from "prism-react-renderer";
+import Prism from "prismjs";
+import "prismjs/components/prism-java";
+import "prismjs/components/prism-bash";
+import "prismjs/components/prism-yaml";
+import "prismjs/components/prism-docker";
+import "prismjs/components/prism-sql";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+/** Theme extending vsDark with annotation (e.g. @Override) and other token colors for Java/IDE-style highlighting */
+const codeBlockTheme: PrismTheme = {
+  ...themes.vsDark,
+  styles: [
+    ...(themes.vsDark.styles || []),
+    { types: ["annotation", "decorator"], style: { color: "rgb(197, 134, 192)" } },
+    { types: ["attr-name"], style: { color: "rgb(156, 220, 254)" } },
+    { types: ["property"], style: { color: "rgb(156, 220, 254)" } },
+  ],
+};
 
 interface CodeBlockProps {
   code: string;
   language: string;
   label?: string;
+  explanation?: string;
   className?: string;
 }
 
-export function CodeBlock({ code, language, label, className }: CodeBlockProps) {
+export function CodeBlock({ code, language, label, explanation, className }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -28,7 +47,7 @@ export function CodeBlock({ code, language, label, className }: CodeBlockProps) 
         </div>
       )}
       <div className="relative">
-        <Highlight theme={themes.vsDark} code={code} language={language}>
+        <Highlight prism={Prism as any} theme={codeBlockTheme} code={code} language={language}>
           {({ className: preClassName, style, tokens, getLineProps, getTokenProps }) => (
             <pre
               className={cn(
@@ -64,6 +83,11 @@ export function CodeBlock({ code, language, label, className }: CodeBlockProps) 
           )}
         </Button>
       </div>
+      {explanation && (
+        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
+          {explanation}
+        </p>
+      )}
     </div>
   );
 }

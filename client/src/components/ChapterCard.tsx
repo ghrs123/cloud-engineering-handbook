@@ -87,6 +87,7 @@ export function ChapterCard({ chapter, moduleAccent = "sky", className }: Chapte
           code={ex.code}
           language={ex.language}
           label={ex.label}
+          explanation={ex.explanation}
         />
       ))}
 
