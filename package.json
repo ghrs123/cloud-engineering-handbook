@@ -1,0 +1,43 @@
+{
+  "name": "cloud-engineering-handbook",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@radix-ui/react-accordion": "^1.2.1",
+    "@radix-ui/react-dialog": "^1.1.2",
+    "@radix-ui/react-dropdown-menu": "^2.1.2",
+    "@radix-ui/react-tabs": "^1.1.1",
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "@radix-ui/react-progress": "^1.1.0",
+    "wouter": "^3.0.2",
+    "mermaid": "^10.11.4",
+    "framer-motion": "^11.14.1",
+    "lucide-react": "^0.445.0",
+    "prism-react-renderer": "^2.4.0",
+    "clsx": "^2.1.0",
+    "tailwind-merge": "^2.5.4",
+    "sonner": "^1.6.7",
+    "class-variance-authority": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.5",
+    "typescript": "^5.6.3",
+    "vite": "^7.1.7",
+    "tailwindcss": "^4.1.14",
+    "@tailwindcss/vite": "^4.1.14",
+    "prettier": "^3.4.2"
+  },
+  "packageManager": "pnpm@10.4.1"
+}
