@@ -3,6 +3,7 @@ import { useRef, useEffect, useState } from "react";
 import { getModuleById } from "@/lib/courseData";
 import { ChapterCard } from "@/components/ChapterCard";
 import { ProgressTracker } from "@/components/ProgressTracker";
+import { Navbar } from "@/components/Navbar";
 import { NotFound } from "./NotFound";
 
 export function ModulePage() {
@@ -36,37 +37,50 @@ export function ModulePage() {
     return <NotFound />;
   }
 
+  const activeIndex = module.chapters.findIndex((ch) => ch.id === activeChapterId);
+
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="w-full border-b border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 md:w-64 md:border-b-0 md:border-r">
-        <div className="sticky top-20">
+    <div className="min-h-screen bg-[#0d1117]">
+      <Navbar />
+      <div className="flex pt-14">
+        {/* Sidebar */}
+        <aside className="hidden lg:block w-16 border-r border-[#21262d] flex-shrink-0">
           <ProgressTracker
-            module={module}
-            currentChapterId={activeChapterId}
+            chapters={module.chapters}
+            activeIndex={Math.max(0, activeIndex)}
+            accentColor={module.accentColor}
           />
-        </div>
-      </aside>
-      <main
-        ref={containerRef}
-        className="flex-1 px-4 py-8 md:px-8"
-      >
-        <div className="mx-auto max-w-3xl space-y-12">
-          <h1 className="text-2xl font-bold text-[hsl(var(--foreground))]">
-            {module.title}
-          </h1>
-          <p className="text-[hsl(var(--muted-foreground))]">
-            {module.description}
-          </p>
-          {module.chapters.map((ch) => (
-            <div key={ch.id} data-chapter-id={ch.id}>
-              <ChapterCard
-                chapter={ch}
-                moduleAccent={module.accentColor}
-              />
+        </aside>
+
+        {/* Main content */}
+        <main ref={containerRef} className="flex-1 px-6 py-8 md:px-10">
+          <div className="mx-auto max-w-3xl">
+            {/* Module header */}
+            <div className="mb-10">
+              <p className="mb-1 font-[JetBrains_Mono] text-xs tracking-widest text-slate-500 uppercase">
+                Module {String(module.id).padStart(2, "0")}
+              </p>
+              <h1 className="text-3xl font-bold text-white font-[IBM_Plex_Sans] leading-tight">
+                {module.title}
+              </h1>
+              <p className="mt-3 text-slate-400 leading-relaxed">
+                {module.description}
+              </p>
             </div>
-          ))}
-        </div>
-      </main>
+
+            {/* Chapters */}
+            <div className="space-y-5">
+              {module.chapters.map((ch) => (
+                <ChapterCard
+                  key={ch.id}
+                  chapter={ch}
+                  moduleAccent={module.accentColor}
+                />
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
