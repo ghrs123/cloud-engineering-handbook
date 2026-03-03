@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
 import type { PrismTheme } from "prism-react-renderer";
+// @ts-expect-error prismjs has no bundled types
 import Prism from "prismjs";
 import "prismjs/components/prism-java";
 import "prismjs/components/prism-bash";
